@@ -1,0 +1,131 @@
+<html>
+<head>
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false"></script>
+</head>
+
+<body>
+<h2>Sound Map</h2>
+<div id="map" style="height: 350px; width: 800px;"></div>
+<div id="track-list-container">
+    <ul id="track-list">
+    </ul>
+</div>
+</body>
+
+<script type="text/javascript">
+    // for soundcloud
+    var soundcloudClientId = "50dd25fd9db79e83c49236a328aca812";
+    var soundcloudDomain = "http://api.soundcloud.com";
+    var soundcloudUrl = soundcloudDomain + "/tracks.json?client_id=" + soundcloudClientId + "&q=urban_sound_archive";
+
+    // for google maps
+    var tracks = [];
+    var mapMarkers = [];
+    // set this to whatever you want the map to initally load ith
+    var latlng = new google.maps.LatLng(47.378, 8.539);
+    var mapOptions = {
+        zoom: 3,
+        center: latlng,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+    };
+    var geocoder = new google.maps.Geocoder();
+    var map = new google.maps.Map(document.getElementById('map'), mapOptions);
+
+    function addMapMarker(locationString, track) {
+
+        // load from google api
+        geocoder.geocode( { 'address': locationString}, function(results, status) {
+          if (status == google.maps.GeocoderStatus.OK) {
+            map.setCenter(results[0].geometry.location);
+
+            // marker
+            var marker = new google.maps.Marker({
+                map: map,
+                position: results[0].geometry.location,
+            });
+
+            mapMarkers.push(marker);
+
+            // info box
+            var content = "<a href='" + track.permalink_url + "'>" + track.title + "</a>";
+            content += "<p>" + track.description + "</p>";
+            content += "<audio controls>";
+            content += "<source src='" + track.stream_url + "?client_id=" + soundcloudClientId + "' type='audio/mpeg'>";
+            content += "Your browser does not support the audio element.";
+            content += "</audio>";
+            var infowindow = new google.maps.InfoWindow({
+                content: content 
+            });
+
+            // add click event
+            google.maps.event.addListener(marker, 'click', function() {
+                infowindow.open(marker.get('map'), marker);
+            });
+
+            google.maps.event.trigger(map, 'resize');
+
+          } else {
+            console.log('Geocode was not successful for the following reason: ' + status);
+            // if failed due to rate limit
+            if (status == google.maps.GeocoderStatus.OVER_QUERY_LIMIT) {
+                window.setTimeout(function() {
+                    addMapMarker(track.description, track);
+                },1000);
+            }
+            // if failed due to bad location
+            if (status == google.maps.GeocoderStatus.ZERO_RESULTS) {
+                //window.setTimeout(function() {
+                //    addMapMarker(track.title, track);
+                //},1000);
+
+            }
+         }
+       });
+    };
+
+    function clearMapMarkers() {
+       for (var m in mapMarkers) {
+            mapMarkers[m].setMap(null);
+        }
+    };
+
+    getSoundcloudTracks(function(response) {
+        // loop through all tracks and try to geocode and pin
+        for (var t in response) {
+            var track = response[t];
+            // this is ensure that you dont hit googles geocoder rate limit
+            addMapMarker(track.description, track);
+            addToTrackList(track); 
+        }
+        console.log(response);
+    });
+
+    function addToTrackList(track) {
+       tracks.push(track);
+        $('#track-list').append("<li>" + track.title + " " + track.description); 
+    };
+
+    function getSoundcloudTracks(callback) {
+        var soundcloudClientId = "50dd25fd9db79e83c49236a328aca812";
+        var soundcloudDomain = "http://api.soundcloud.com";
+        var soundcloudUrl = soundcloudDomain + "/tracks.json?client_id=" + soundcloudClientId + "&q=urban_sound_archive";
+        
+        console.log(soundcloudUrl);
+
+        $.ajax({
+            url: soundcloudUrl,
+            type: "get",
+            dataType: "json",
+            success: function(response) {
+                callback(response);
+            },
+            error: function(err, text, msg) {
+                console.log(msg);
+            }
+        });
+    };
+</script>
+</html>
+
+
